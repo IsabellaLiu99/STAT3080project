@@ -1,0 +1,180 @@
+---
+title: "Project Part 1" 
+fontsize: 12pt
+geometry: margin=1in
+urlcolor: black
+output: pdf_document
+header-includes:
+- \usepackage{setspace}
+- \onehalfspacing
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, highlight=FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Use this chunk for reading in packages.
+# Use this chunk for reading in the data, combining the data, and any other major data cleaning that is not relevant to show.
+
+file_path <- "nyc_restaurant_inspections.csv"
+
+if (file.exists(file_path)) {
+  data <- read_csv(file_path, show_col_types = FALSE)
+} else {
+  data <- read_csv(
+    "https://data.cityofnewyork.us/api/views/43nn-pn8j/rows.csv?accessType=DOWNLOAD",
+    show_col_types = FALSE
+  )
+}
+
+data_clean <- data %>%
+  select(cuisine_description, score) %>%
+  filter(!is.na(cuisine_description), !is.na(score), score > 0)
+
+top_cuisines <- data_clean %>%
+  count(cuisine_description, sort = TRUE) %>%
+  slice_head(n = 10) %>%
+  pull(cuisine_description)
+
+data_plot <- data_clean %>%
+  filter(cuisine_description %in% top_cuisines)
+
+data_top <- data_clean %>%
+  filter(cuisine_description %in% top_cuisines) %>%
+  mutate(cuisine_description = as.factor(cuisine_description))
+
+summary_stats <- data_clean %>%
+  group_by(cuisine_description) %>%
+  summarise(
+    mean_score = mean(score),
+    median_score = median(score),
+    sd_score = sd(score),
+    n = n(),
+    .groups = "drop"
+  )
+
+overall_summary <- data_top %>%
+  summarise(
+    mean_score = mean(score),
+    median_score = median(score),
+    sd_score = sd(score),
+    IQR_score = IQR(score),
+    n = n()
+  )
+
+boxplot_score <- ggplot(data_top, aes(x = cuisine_description, y = score)) +
+  geom_boxplot() +
+  labs(
+    title = "Restaurant Inspection Scores by Cuisine Type",
+    x = "Cuisine Type",
+    y = "Inspection Score"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+hist_score <- ggplot(data_top, aes(x = score)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Restaurant Inspection Scores",
+    x = "Inspection Score",
+    y = "Count"
+  )
+
+mean_plot <- ggplot(summary_stats, aes(x = cuisine_description, y = mean_score)) +
+  geom_col() +
+  labs(
+    title = "Mean Inspection Score by Cuisine Type",
+    x = "Cuisine Type",
+    y = "Mean Inspection Score"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+**Author(s):** Isabella Liu, Stella Sun, Jillian Geng  
+
+**GitHub Repository URL:** https://github.com/IsabellaLiu99/STAT3080project
+
+## Introduction 
+
+This project examines whether average restaurant inspection scores differ across cuisine types in New York City restaurants. Restaurant inspection scores provide a useful way to explore variation in food safety outcomes across groups. Because cuisine type is a categorical variable and inspection score is a quantitative variable, this topic is well suited for exploratory data analysis.
+
+The research question for this project is: **Do average restaurant inspection scores differ across cuisine types in New York City restaurants?**
+
+## Data Summary 
+
+The data used in this project come from the New York City Open Data portal and contain restaurant inspection results collected by the New York City Department of Health. The data set includes information on active restaurants, such as cuisine type, inspection score, grade, borough, inspection date, and violation details.
+
+These data represent a sample of restaurant inspection records rather than a complete population of all restaurants everywhere. For this project, the variables cuisine_description and score were selected because they directly address the research question. The full dataset contains many cuisine categories. To ensure that the graphical summaries remain clear and interpretable, only the ten most common cuisine types are displayed in the visualizations. However, all cuisine types are included in the numerical summaries.
+
+Some data cleaning was performed after collection. Observations with missing values for cuisine type or inspection score were removed, and only positive inspection scores were retained. These changes were made so that the numerical and graphical summaries would be based on complete and interpretable observations.
+
+One possible issue with the data is that inspection scores may be influenced by factors other than cuisine type, such as restaurant size, location, inspection timing, or management practices. In addition, restaurants can appear more than once if they were inspected multiple times. Even so, the data are appropriate for answering the research question because they include the exact categorical and quantitative variables needed to compare inspection scores across cuisine groups.
+
+## Exploratory Analysis 
+
+The summary statistics show noticeable differences in inspection scores across cuisine types. Some cuisine groups have substantially higher mean inspection scores than others. For example, certain cuisines have mean scores above 30, while others have means closer to the low 20s. In addition, variability differs across cuisines, with some groups showing much larger standard deviations than others, indicating greater spread in inspection outcomes.
+
+The overall mean inspection score is 24.72, while the overall median is 20. Because the mean is larger than the median, the distribution appears to be right-skewed. This suggests that although many restaurants receive relatively low to moderate scores, some restaurants receive much higher scores that pull the mean upward.
+
+### Numerical Summary 1: Summary statistics by cuisine type
+
+```{r, echo=FALSE}
+summary_stats
+```
+
+The table above shows the mean, median, standard deviation, minimum, maximum, and sample size of inspection scores for each cuisine type. These summaries allow comparison of the center and spread of inspection scores across groups.
+
+### Numerical Summary 2: Overall summary of inspection scores
+
+```{r, echo=FALSE}
+overall_summary
+```
+
+This overall summary gives additional context for the inspection score distribution in the selected sample of restaurants.
+
+### Graphical Summary 1: Boxplot of inspection scores by cuisine type
+
+```{r, echo=FALSE}
+ggplot(data_plot, aes(x = cuisine_description, y = score)) +
+  geom_boxplot() +
+  labs(
+    title = "Inspection Scores by Cuisine Type (Top 10 Most Common)",
+    x = "Cuisine Type",
+    y = "Score"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The boxplot shows that inspection scores differ across cuisine types in both center and spread. Some cuisine groups have higher median scores and wider ranges than others. Several groups also display numerous high-score outliers, indicating that some restaurants received inspection scores much larger than the typical values in their group.
+
+### Graphical Summary 2: Histogram of inspection scores
+
+```{r, echo=FALSE}
+ggplot(data_clean, aes(x = score)) +
+  geom_histogram(bins = 30) +
+  labs(
+    title = "Distribution of Inspection Scores (All Cuisines)",
+    x = "Score",
+    y = "Count"
+  )
+```
+The histogram shows that the overall distribution of inspection scores is right-skewed. Most scores are concentrated at lower values, with fewer restaurants receiving very high inspection scores. This pattern is consistent with the numerical summaries, where the mean is greater than the median.
+
+The exploratory summaries suggest that inspection scores differ across the selected cuisine types. The numerical summaries show differences in both average score and spread, while the boxplot highlights variation in medians, interquartile ranges, and outliers. The histogram shows that the overall distribution of inspection scores is somewhat right-skewed, with many restaurants receiving lower to moderate scores and fewer restaurants receiving very high scores.
+
+Taken together, these summaries provide preliminary evidence that cuisine type may be associated with differences in inspection scores. However, this conclusion is only descriptive because no formal statistical inference is performed in Part 1.
+
+## Conclusions 
+
+Based on the exploratory analysis, average restaurant inspection scores appear to vary across cuisine types in New York City restaurants. The numerical summaries suggest that some cuisine groups have higher average scores and greater variability than others. 
+
+The histogram indicates that inspection scores are right-skewed, meaning that most restaurants receive relatively low to moderate scores, while a smaller number of restaurants receive much higher scores. The boxplot further shows that both the center and spread of inspection scores differ across cuisine types.
+
+These patterns suggest that cuisine type may be associated with differences in inspection outcomes. However, because this analysis is purely exploratory, no formal conclusions about statistical significance can be made at this stage. A hypothesis test in Part 2 would be needed to determine whether these differences are statistically meaningful.
+
+\newpage
+
+## References 
+
+New York City Open Data. (n.d.). DOHMH New York City Restaurant Inspection Results. Retrieved from https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
