@@ -1,0 +1,117 @@
+---
+title: "Project Part 2"
+fontsize: 12pt
+geometry: margin=1in
+urlcolor: black
+output: pdf_document
+header-includes:
+- \usepackage{setspace}
+- \onehalfspacing
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, highlight=FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Read in data and perform same cleaning as Part 1
+file_path <- "nyc_restaurant_inspections.csv"
+
+if (file.exists(file_path)) {
+  data <- read_csv(file_path, show_col_types = FALSE)
+} else {
+  data <- read_csv(
+    "https://data.cityofnewyork.us/api/views/43nn-pn8j/rows.csv?accessType=DOWNLOAD",
+    show_col_types = FALSE
+  )
+}
+
+# Same cleaning as Part 1
+data_clean <- data %>%
+  select(cuisine_description, score) %>%
+  filter(!is.na(cuisine_description), !is.na(score), score > 0)
+
+# Focus on the top 10 most common cuisines, consistent with Part 1
+top_cuisines <- data_clean %>%
+  count(cuisine_description, sort = TRUE) %>%
+  slice_head(n = 10) %>%
+  pull(cuisine_description)
+
+data_top <- data_clean %>%
+  filter(cuisine_description %in% top_cuisines) %>%
+  mutate(cuisine_description = as.factor(cuisine_description))
+```
+
+**Author(s):** Isabella Liu, Stella Sun, Jillian Geng
+
+**GitHub Repository URL:** https://github.com/IsabellaLiu99/STAT3080project
+
+## Introduction
+
+This report extends the Part 1 exploratory analysis examining whether restaurant inspection scores differ across cuisine types in New York City, using data from the NYC Department of Health and Mental Hygiene. NYC restaurant inspections assign numerical scores based on health code violations, where higher scores indicate more or more severe violations. Understanding whether scores differ systematically by cuisine type could inform targeted food safety policy and inspection resource allocation.
+
+Part 1 found that among the top 10 most common cuisine types, inspection scores varied in both center and spread. The overall distribution was right-skewed (mean = 24.72, median = 20), indicating that most restaurants received relatively low scores but a smaller number received very high scores. The boxplot revealed differences in medians, IQRs, and outlier patterns across cuisine groups, with some groups showing notably higher typical scores than others. These patterns suggested that cuisine type may be associated with inspection outcomes, motivating a formal hypothesis test.
+
+**Research question:** Do restaurant inspection scores differ in distribution across the top 10 most common cuisine types in New York City?
+
+## Methods
+
+The **Kruskal-Wallis rank-sum test** is used to compare inspection score distributions across the 10 cuisine groups. This nonparametric test is appropriate because: (1) the question involves more than two independent groups; (2) Part 1 showed markedly right-skewed scores, violating the normality assumption of one-way ANOVA; and (3) cuisine categories are mutually exclusive, satisfying independence.
+
+**Assumptions:**
+
+1. **Independence:** Each row represents a separate inspection event, and each restaurant belongs to exactly one cuisine category, so observations across groups are independent. Within groups, different restaurants are treated as independent.
+2. **Continuous response:** Inspection score is a continuous quantitative variable measured on a numerical scale, satisfying this requirement.
+3. **Similar distributional shape:** For the test result to be interpreted as a difference in location (median), groups should share a similar shape. The Part 1 boxplot showed that all 10 cuisine groups exhibit a broadly right-skewed shape with comparable spread, supporting this interpretation.
+
+The Q-Q plots below formally assess normality within each cuisine group:
+
+```{r, echo=FALSE, fig.height=4.5}
+# QQ plots by cuisine type to assess normality within groups
+ggplot(data_top, aes(sample = score)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  facet_wrap(~ cuisine_description, scales = "free", ncol = 5) +
+  labs(
+    title = "Normal Q-Q Plots of Inspection Scores by Cuisine Type",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme(strip.text = element_text(size = 7))
+```
+
+In all 10 panels, data points follow the red reference line reasonably well in the lower and middle range, but curve sharply upward in the upper tail. This consistent S-shaped deviation pattern indicates right skew with heavy upper tails in every cuisine group — the same pattern observed in the Part 1 histogram. Since normality is violated in all groups, one-way ANOVA is not appropriate, and the nonparametric Kruskal-Wallis test is justified.
+
+The hypotheses for the Kruskal-Wallis test are:
+
+- $H_0$: The distribution of inspection scores is the same across all 10 cuisine types.
+- $H_a$: At least one cuisine type has a different distribution of inspection scores.
+
+The significance level is $\alpha = 0.05$.
+
+## Results
+
+```{r}
+# Kruskal-Wallis test comparing inspection scores across the top 10 cuisine types
+kruskal_result <- kruskal.test(score ~ cuisine_description, data = data_top)
+kruskal_result
+```
+
+The Kruskal-Wallis test produced a chi-squared statistic of $\chi^2 = 79.042$ on 9 degrees of freedom, corresponding to a p-value of $2.505 \times 10^{-13}$. The degrees of freedom equal the number of groups minus one ($10 - 1 = 9$), as expected. The large test statistic indicates that the observed differences in rank distributions across cuisine groups are far greater than what would be expected under $H_0$. Because the p-value is many orders of magnitude below the significance level of $\alpha = 0.05$, the result is **statistically significant**. There is very strong evidence to reject the null hypothesis and conclude that at least one cuisine type has a different distribution of inspection scores.
+
+## Conclusions
+
+The Kruskal-Wallis test provides very strong statistical evidence that restaurant inspection score distributions differ across at least some of the top 10 most common cuisine types in NYC ($\chi^2 = 79.042$, df = 9, p-value = $2.505 \times 10^{-13}$). In non-statistical terms, the cuisine type a restaurant belongs to is associated with meaningfully different inspection outcomes — certain cuisine categories tend to receive systematically higher or lower violation scores than others. This suggests that food safety performance is not uniform across cuisine types and that some types of restaurants may face greater compliance challenges than others.
+
+**Limitations:** The Kruskal-Wallis test only establishes that at least one group differs from the others; it does not identify which specific cuisine pairs drive the difference. Post-hoc pairwise comparisons using Dunn's test with a multiple testing correction would be needed to answer that question. Additionally, the dataset contains multiple inspection records per restaurant across time, which partially violates the independence assumption and may inflate the test statistic. Finally, cuisine type is likely correlated with other factors such as borough, restaurant size, price point, and management experience, which could confound the observed association between cuisine type and inspection scores.
+
+**Generalizability:** The data represent active NYC restaurants inspected by the NYC Department of Health and Mental Hygiene, so results can reasonably be generalized to the broader population of active NYC restaurants. However, the findings should not be extended to restaurants in other cities or countries, where inspection criteria, scoring systems, and restaurant demographics differ substantially.
+
+\newpage
+
+## References
+
+New York City Open Data. (n.d.). *DOHMH New York City Restaurant Inspection Results*. Retrieved from https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j
+
+Hollander, M., Wolfe, D. A., & Chicken, E. (2013). *Nonparametric Statistical Methods* (3rd ed.). Wiley.
